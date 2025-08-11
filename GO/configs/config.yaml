@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+jwt:
+  secret: "change-me"
+  access_ttl_minutes: 30
+  refresh_ttl_days: 14
+
+mongo:
+  uri: "mongodb://localhost:27017"
+  database: "roleplay"
+
+sms:
+  enabled: true
+  mock_code: "123456"
+

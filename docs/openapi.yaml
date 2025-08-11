@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: 语言角色扮演后端 API
+  version: 1.0.0
+  description: |
+    本文档描述了后端 REST API，涵盖用户鉴权、用户资料、关系链（好友/黑名单）、群组、消息、演绎房间等模块。
+    - 统一返回：{ code, message, data }
+    - 鉴权：除标注“任何人”的接口外，其余均需在 Header 携带 `Authorization: Bearer <accessToken>`
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CommonResponse:
+      type: object
+      properties:
+        code: { type: integer, example: 200 }
+        message: { type: string, example: success }
+        data: { type: object }
+    SendCodeRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, description: 手机号 }
+    LoginRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string }
+        code: { type: string }
+    TokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/CommonResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken: { type: string }
+                refreshToken: { type: string }
+    User:
+      type: object
+      properties:
+        user_id: { type: string }
+        phone: { type: string }
+        nickname: { type: string }
+        avatar: { type: string }
+        gender: { type: string }
+        bio: { type: string }
+        created_at: { type: string, format: date-time }
+    UpdateUserRequest:
+      type: object
+      properties:
+        nickname: { type: string }
+        avatar: { type: string }
+        gender: { type: string }
+        bio: { type: string }
+    FriendRequestCreate:
+      type: object
+      required: [user_id]
+      properties:
+        user_id: { type: string, description: 对方用户ID }
+        greeting: { type: string, description: 附言 }
+    FriendRequestRespond:
+      type: object
+      required: [request_id, action]
+      properties:
+        request_id: { type: string }
+        action: { type: string, enum: [accept, reject] }
+    GroupCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        avatar: { type: string }
+    GroupAddMembers:
+      type: object
+      required: [user_ids]
+      properties:
+        user_ids:
+          type: array
+          items: { type: string }
+    SendMessage:
+      type: object
+      required: [conversation_type, conversation_id, message_type, element]
+      properties:
+        conversation_type: { type: string, enum: [dm, group, room] }
+        conversation_id: { type: string }
+        message_type: { type: string, enum: [character, user, system] }
+        element:
+          type: object
+          additionalProperties: true
+        character_id: { type: string, nullable: true }
+    OneClickLoginRequest:
+      type: object
+      required: [phone, device_id]
+      properties:
+        phone: { type: string }
+        device_id: { type: string }
+        platform: { type: string, enum: [android, ios, web] }
+    AvatarUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+paths:
+  /api/user/send_code:
+    post:
+      summary: 发送登录验证码（Mock/真实）
+      tags: [鉴权]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendCodeRequest' }
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/CommonResponse' }}}}
+
+  /api/user/login:
+    post:
+      summary: 手机号+验证码登录
+      tags: [鉴权]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: 返回访问令牌与刷新令牌, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' }}}}
+
+  /api/auth/refresh:
+    post:
+      summary: 使用刷新令牌换取新的访问令牌
+      tags: [鉴权]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' }}}}
+
+  /api/user/oneclick_login:
+    post:
+      summary: 一键登录（本地模拟，可扩展接入运营商）
+      tags: [鉴权]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OneClickLoginRequest' }
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' }}}}
+
+  /api/user/me:
+    get:
+      summary: 获取本人信息
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CommonResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/User' }
+    put:
+      summary: 修改本人信息
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/CommonResponse' }}}}
+
+  /api/relation/friend/request:
+    post:
+      summary: 发起好友申请
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendRequestCreate' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/friend/respond:
+    post:
+      summary: 处理好友申请
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FriendRequestRespond' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/friend/requests:
+    get:
+      summary: 列出与我相关的好友申请
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/friends:
+    get:
+      summary: 我的好友列表
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/block/{user_id}:
+    post:
+      summary: 拉黑用户
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+    delete:
+      summary: 取消拉黑
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/blocks:
+    get:
+      summary: 我的黑名单
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/group:
+    post:
+      summary: 创建群组
+      tags: [群组]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GroupCreate' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/group/{group_id}/members:
+    post:
+      summary: 添加群成员
+      tags: [群组]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: group_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GroupAddMembers' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/group/{group_id}/members/{user_id}:
+    delete:
+      summary: 移除群成员/退群
+      tags: [群组]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: group_id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/group/my:
+    get:
+      summary: 我加入的群组
+      tags: [群组]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/group/{group_id}:
+    get:
+      summary: 群组详情
+      tags: [群组]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: group_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/message/send:
+    post:
+      summary: 发送消息（统一接口）
+      tags: [消息]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessage' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/message/history:
+    get:
+      summary: 查询历史消息（按 seq 分页）
+      tags: [消息]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: conversation_type
+          schema: { type: string, enum: [dm, group, room] }
+        - in: query
+          name: conversation_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: lastSeq
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        '200': { description: 成功 }
+
+  /api/room/join:
+    post:
+      summary: 加入演绎房间
+      tags: [房间]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recruit_id: { type: string }
+                character_id: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/room/{id}/messages:
+    get:
+      summary: 房间消息列表
+      tags: [房间]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/room/{id}/message:
+    post:
+      summary: 房间发送消息
+      tags: [房间]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessage' }
+      responses:
+        '200': { description: 成功 }
+
+  /api/file/avatar:
+    post:
+      summary: 上传用户头像（multipart/form-data）
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvatarUpload'
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/CommonResponse' }}}}
+
+  /api/relation/follow/{user_id}:
+    post:
+      summary: 关注指定用户
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+    delete:
+      summary: 取消关注
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/follow/status/{user_id}:
+    get:
+      summary: 获取当前用户对目标用户的关注状态
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/followers:
+    get:
+      summary: 获取我的粉丝列表（简单示例）
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/relation/following:
+    get:
+      summary: 获取我关注的用户列表（简单示例）
+      tags: [关系链]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+
+  /api/user/profile/{user_id}:
+    get:
+      summary: 获取用户主页信息（含在线状态与统计）
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 成功 }
+
+  /api/user/activities/{user_id}:
+    get:
+      summary: 获取用户最近活动（游标分页）
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: last_id
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200': { description: 成功 }
+
+  /api/user/heartbeat:
+    post:
+      summary: 心跳上报（更新 lastSeenAt，用于派生在线状态）
+      tags: [用户]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+

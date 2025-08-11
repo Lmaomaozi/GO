@@ -1,0 +1,24 @@
+server:
+  # 服务监听端口
+  port: 8080
+
+jwt:
+  # JWT 签名密钥（生产环境请使用安全的随机值）
+  secret: ${JWT_SECRET}
+  # 访问令牌有效期（分钟）
+  access_ttl_minutes: 30
+  # 刷新令牌有效期（天）
+  refresh_ttl_days: 14
+
+mongo:
+  # MongoDB 连接字符串
+  uri: "mongodb://localhost:27017"
+  # 默认数据库名
+  database: "roleplay"
+
+sms:
+  # 是否启用短信模块（开发环境可用 Mock）
+  enabled: true
+  # Mock 验证码（开发联调用）
+  mock_code: "123456"
+
