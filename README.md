@@ -132,7 +132,6 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/user/login" -Method POST -Cont
  powershell -ExecutionPolicy Bypass -File scripts/test_all_fixed.ps1
 ```
 
-
 ## 5. 常见问题
 
 ### 5.1 端口被占用
@@ -182,5 +181,5 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/user/login" -Method POST -Cont
 
 ### 6.4 支持的API
 见GO/docs/openapi.yaml
-
+待完善：一键登录、上传用户头像等等
 
